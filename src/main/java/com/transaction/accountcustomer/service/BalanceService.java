@@ -1,6 +1,7 @@
 package com.transaction.accountcustomer.service;
 
 import com.transaction.accountcustomer.entity.Balance;
+import com.transaction.accountcustomer.error.ErrorMessage;
 import com.transaction.accountcustomer.mapper.BalanceMapper;
 import com.transaction.accountcustomer.model.BalanceModel;
 import com.transaction.accountcustomer.repository.AccountRepository;
@@ -22,37 +23,49 @@ public class BalanceService {
 
     public Flux<BalanceModel> getBalanceList() {
         return balanceRepository.findAll()
-                .doOnError(error -> log.error("Error findAll balance: " ,error))
+                .doOnError(error -> {
+                    log.error("Error findAll balance: ", error);
+                    Mono.error(new ErrorMessage("Error find balance", error));
+                })
                 .map(balanceMapper::getBalanceModelFromEntity);
     }
 
     public Mono<BalanceModel> getBalanceById(int balanceId) {
 
         return balanceRepository.findById(balanceId)
-                .doOnError(error -> log.error("Error find by id balance: " ,error))
+                .doOnError(error -> {
+                    log.error("Error find by id balance: ", error);
+                    Mono.error(new ErrorMessage("Error find balance by id", error));
+                })
                 .map(balanceMapper::getBalanceModelFromEntity);
     }
 
     public Mono<BalanceModel> saveBalance(BalanceModel balance) {
         return accountRepository.findById(balance.getAccountId())
-                .doOnError(error -> log.error("Error retrieving account"))
+                .doOnError(error -> {
+                    log.error("Error retrieving account");
+                    Mono.error(new ErrorMessage("Error retrieving account", error));
+                })
                 .flatMap(account -> {
-                    Double newBalance = calculateBalance(balance.getValue(),balance.getType(), account.getBalance());
+                    Double newBalance = calculateBalance(balance.getValue(), balance.getType(), account.getBalance());
                     balance.setBalance(newBalance);
                     account.setBalance(newBalance);
                     return balanceRepository.save(balanceMapper.getBalanceEntityFromBalanceModel(balance))
-                            .doOnError(error -> log.error("Error updating balance"))
-                            .doOnNext(data ->  accountRepository.save(account).subscribe())
+                            .doOnError(error -> {
+                                log.error("Error saving balance");
+                                Mono.error(new ErrorMessage("Error saving balance", error));
+                            })
+                            .doOnNext(data -> accountRepository.save(account).subscribe())
                             .map(balanceMapper::getBalanceModelFromEntity);
 
                 });
     }
 
-    private Double calculateBalance(Double value, String type, Double accountBalance){
-        if(type.equals("C")){
+    private Double calculateBalance(Double value, String type, Double accountBalance) {
+        if (type.equals("C")) {
             accountBalance += value;
-        }else{
-            if(value.compareTo(accountBalance) > 0 ){
+        } else {
+            if (value.compareTo(accountBalance) > 0) {
                 throw new RuntimeException("Insufficient funds!!");
             }
             accountBalance -= value;
@@ -61,13 +74,20 @@ public class BalanceService {
     }
 
     public Mono<BalanceModel> updateBalance(int balanceId, Balance balance) {
-        return balanceRepository.save(new Balance(balanceId, balance.getAccountId(), balance.getDate(), balance.getType(), balance.getValue(), balance.getBalance()) )
-                .doOnError(error -> log.error("Error updating balance: " ,error))
+        return balanceRepository.save(new Balance(balanceId, balance.getAccountId(), balance.getDate(), balance.getType(), balance.getValue(), balance.getBalance()))
+                .doOnError(error -> {
+                    log.error("Error updating balance: ", error);
+                    Mono.error(new ErrorMessage("Error updating balance", error));
+                })
                 .map(balanceMapper::getBalanceModelFromEntity);
     }
 
     public Mono<Void> deleteBalance(int balanceId) {
         return balanceRepository.deleteById(balanceId)
-                .doOnError(error -> log.error("Error deleting balance: " ,error));
+                .doOnError(error -> {
+                    log.error("Error deleting balance: ", error);
+                    Mono.error(new ErrorMessage("Error deleting balance", error));
+                    ;
+                });
     }
 }
